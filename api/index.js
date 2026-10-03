@@ -71,7 +71,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
                 ? new Date(match.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
                 : 'Horário N/I';
 
-            const popularBadge = match.popular ? '🔥 ' : '';
+            const popularBadge = match.popular ? ' ' : '';
             const categoryBadge = match.category ? `[${match.category.toUpperCase()}] ` : '';
 
             return {
