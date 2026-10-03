@@ -59,10 +59,11 @@ builder.defineStreamHandler(async ({ id }) => {
         
         const rawStreams = Array.isArray(streamsData) ? streamsData : [streamsData];
         
+        // CORRIGIDO: Fechamento do .map() com '))'
         const streams = rawStreams.map(s => ({
             title: s.name || s.resolution || 'Stream ao Vivo',
             url: s.url || s.embedUrl || s.streamUrl
-        })].filter(s => s.url);
+        })).filter(s => s.url);
 
         return { streams };
     } catch (error) {
@@ -71,12 +72,10 @@ builder.defineStreamHandler(async ({ id }) => {
     }
 });
 
-// Converte a interface do Stremio para um roteador Express
 const addonInterface = builder.getInterface();
 const router = getRouter(addonInterface);
 
 const app = express();
 app.use('/', router);
 
-// Exporta o app para a Vercel como Serverless Function
 module.exports = app;
