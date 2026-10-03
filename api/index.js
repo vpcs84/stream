@@ -2,25 +2,35 @@ const { addonBuilder, getRouter, landingTemplate } = require('stremio-addon-sdk'
 const express = require('express');
 
 const BASE_URL = 'https://streamed.pk';
+const ID_PREFIX = 'streamed:';
 
 const CATALOGS = [
     { id: 'live', name: '🔴 Ao Vivo Agora', path: '/api/matches/live' },
+    { id: 'live_popular', name: '🔥 Populares Ao Vivo', path: '/api/matches/live/popular' },
+    { id: 'today', name: '📅 Jogos de Hoje', path: '/api/matches/all-today' },
+    { id: 'football', name: '⚽ Futebol', path: '/api/matches/football' },
+    { id: 'basketball', name: '🏀 Basquete', path: '/api/matches/basketball' },
+    { id: 'tennis', name: '🎾 Tênis', path: '/api/matches/tennis' },
+    { id: 'mma', name: '🥋 MMA', path: '/api/matches/mma' },
+    { id: 'boxing', name: '🥊 Boxe', path: '/api/matches/boxing' },
+    { id: 'motorsport', name: '🏎️ Automobilismo / F1', path: '/api/matches/motorsport' },
     { id: 'all', name: '🌐 Todos os Eventos', path: '/api/matches/all' }
 ];
 
 const manifest = {
-    id: 'org.streamedaddon.sports',
-    version: '1.4.0',
-    name: 'Streamed Sports Ultra',
-    description: 'Transmissões esportivas ao vivo com suporte a múltiplos servidores e reprodutor externo.',
-    types: ['tv', 'other'],
+    // ID Único alterado para evitar conflito com instâncias antigas ou públicas
+    id: 'org.streamedaddon.sports.custom',
+    version: '1.5.0',
+    name: 'Streamed Sports PRO',
+    description: 'Transmissões esportivas ao vivo com suporte a múltiplos servidores e links externos.',
+    types: ['tv', 'sports', 'other'],
     catalogs: CATALOGS.map(cat => ({
         type: 'tv',
         id: `streamed_${cat.id}`,
         name: cat.name
     })),
     resources: ['catalog', 'stream'],
-    idPrefixes: ['streamed:']
+    idPrefixes: [ID_PREFIX]
 };
 
 const builder = new addonBuilder(manifest);
@@ -44,10 +54,19 @@ function buildPosterUrl(match) {
     return undefined;
 }
 
-// Manipulador do Catálogo
+// Manipulador de Catálogo com isolamento de escopo
 builder.defineCatalogHandler(async ({ type, id }) => {
+    // Garante que o catálogo solicitado pertence ao nosso addon
+    if (!id.startsWith('streamed_')) {
+        return { metas: [] };
+    }
+
     const catalogKey = id.replace('streamed_', '');
-    const currentCatalog = CATALOGS.find(c => c.id === catalogKey) || CATALOGS[0];
+    const currentCatalog = CATALOGS.find(c => c.id === catalogKey);
+
+    if (!currentCatalog) {
+        return { metas: [] };
+    }
 
     try {
         const response = await fetch(`${BASE_URL}${currentCatalog.path}`);
@@ -65,7 +84,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
             const categoryBadge = match.category ? `[${match.category.toUpperCase()}] ` : '';
 
             return {
-                id: `streamed:${catalogKey}:${match.id}`,
+                id: `${ID_PREFIX}${catalogKey}:${match.id}`,
                 type: 'tv',
                 name: `${popularBadge}${categoryBadge}${match.title}`,
                 poster: buildPosterUrl(match),
@@ -75,19 +94,25 @@ builder.defineCatalogHandler(async ({ type, id }) => {
 
         return { metas };
     } catch (error) {
-        console.error(`Erro ao carregar catálogo ${catalogKey}:`, error);
+        console.error(`[Streamed Addon] Erro no catálogo ${catalogKey}:`, error);
         return { metas: [] };
     }
 });
 
-// Manipulador de Streams (Com suporte a externalUrl)
+// Manipulador de Streams com verificação de segurança de ID
 builder.defineStreamHandler(async ({ id }) => {
-    try {
-        const parts = id.split(':');
-        if (parts.length < 3) return { streams: [] };
+    // Se a requisição de stream não começar com nosso prefixo, ignora imediatamente
+    if (!id.startsWith(ID_PREFIX)) {
+        return { streams: [] };
+    }
 
-        const catalogKey = parts[1];
-        const matchId = parts.slice(2).join(':');
+    try {
+        const cleanId = id.replace(ID_PREFIX, '');
+        const parts = cleanId.split(':');
+        if (parts.length < 2) return { streams: [] };
+
+        const catalogKey = parts[0];
+        const matchId = parts.slice(1).join(':');
 
         const currentCatalog = CATALOGS.find(c => c.id === catalogKey);
         const endpoint = currentCatalog ? currentCatalog.path : '/api/matches/all';
@@ -126,11 +151,10 @@ builder.defineStreamHandler(async ({ id }) => {
                 const streamUrl = s.embedUrl || s.url;
                 if (!streamUrl) return null;
 
-                const hdLabel = s.hd ? 'HD 1080p' : 'SD';
+                const hdLabel = s.hd ? 'HD' : 'SD';
                 const langLabel = s.language ? ` 🌐 ${s.language}` : '';
                 const sourceLabel = s.source ? ` [${s.source.toUpperCase()}]` : '';
 
-                // Verifica se o link é um arquivo de mídia direto (.m3u8 / .mp4)
                 const isDirectVideo = streamUrl.includes('.m3u8') || streamUrl.includes('.mp4');
 
                 if (isDirectVideo) {
@@ -140,7 +164,6 @@ builder.defineStreamHandler(async ({ id }) => {
                     };
                 }
 
-                // Para Embeds de páginas web, usa externalUrl (Abre no navegador)
                 return {
                     title: `🌐 Abrir no Navegador #${s.streamNo || 1}${langLabel} - ${hdLabel}${sourceLabel}`,
                     externalUrl: streamUrl
@@ -150,7 +173,7 @@ builder.defineStreamHandler(async ({ id }) => {
 
         return { streams };
     } catch (error) {
-        console.error('Erro ao buscar streams:', error);
+        console.error('[Streamed Addon] Erro ao buscar streams:', error);
         return { streams: [] };
     }
 });
@@ -160,10 +183,16 @@ const router = getRouter(addonInterface);
 
 const app = express();
 
+// Configuração completa de CORS e Headers para a Vercel
 app.use((req, res, next) => {
-    res.setHeader('Cache-Control', 'max-age=60, s-maxage=60, stale-while-revalidate=120');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Cache-Control', 'max-age=60, s-maxage=60, stale-while-revalidate=120');
+    
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
     next();
 });
 
