@@ -5,14 +5,6 @@ const BASE_URL = 'https://streamed.pk';
 
 const CATALOGS = [
     { id: 'live', name: '🔴 Ao Vivo Agora', path: '/api/matches/live' },
-    { id: 'live_popular', name: '🔥 Populares Ao Vivo', path: '/api/matches/live/popular' },
-    { id: 'today', name: '📅 Jogos de Hoje', path: '/api/matches/all-today' },
-    { id: 'football', name: '⚽ Futebol', path: '/api/matches/football' },
-    { id: 'basketball', name: '🏀 Basquete', path: '/api/matches/basketball' },
-    { id: 'tennis', name: '🎾 Tênis', path: '/api/matches/tennis' },
-    { id: 'mma', name: '🥋 MMA', path: '/api/matches/mma' },
-    { id: 'boxing', name: '🥊 Boxe', path: '/api/matches/boxing' },
-    { id: 'motorsport', name: '🏎️ Automobilismo / F1', path: '/api/matches/motorsport' },
     { id: 'all', name: '🌐 Todos os Eventos', path: '/api/matches/all' }
 ];
 
