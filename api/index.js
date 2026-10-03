@@ -4,22 +4,15 @@ const express = require('express');
 const BASE_URL = 'https://streamed.pk';
 const ID_PREFIX = 'streamed:';
 
+// Apenas os 2 catálogos solicitados
 const CATALOGS = [
     { id: 'live', name: '🔴 Ao Vivo Agora', path: '/api/matches/live' },
-    { id: 'live_popular', name: '🔥 Populares Ao Vivo', path: '/api/matches/live/popular' },
-    { id: 'today', name: '📅 Jogos de Hoje', path: '/api/matches/all-today' },
-    { id: 'football', name: '⚽ Futebol', path: '/api/matches/football' },
-    { id: 'basketball', name: '🏀 Basquetebol', path: '/api/matches/basketball' },
-    { id: 'tennis', name: '🎾 Ténis', path: '/api/matches/tennis' },
-    { id: 'mma', name: '🥋 MMA', path: '/api/matches/mma' },
-    { id: 'boxing', name: '🥊 Boxe', path: '/api/matches/boxing' },
-    { id: 'motorsport', name: '🏎️ Automobilismo / F1', path: '/api/matches/motorsport' },
     { id: 'all', name: '🌐 Todos os Eventos', path: '/api/matches/all' }
 ];
 
 const manifest = {
     id: 'org.streamedaddon.sports.custom',
-    version: '1.6.0',
+    version: '1.7.0',
     name: 'Streamed Sports PRO',
     description: 'Transmissões desportivas ao vivo com suporte a múltiplos servidores e metadados.',
     types: ['tv', 'sports', 'other'],
@@ -28,7 +21,6 @@ const manifest = {
         id: `streamed_${cat.id}`,
         name: cat.name
     })),
-    // Recursos atualizados com 'meta' incluído
     resources: ['catalog', 'stream', 'meta'],
     idPrefixes: [ID_PREFIX]
 };
@@ -98,7 +90,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
     }
 });
 
-// Manipulador de Metadados (resolve a ausência de metadados)
+// Manipulador de Metadados
 builder.defineMetaHandler(async ({ type, id }) => {
     if (!id.startsWith(ID_PREFIX)) {
         return { meta: null };
