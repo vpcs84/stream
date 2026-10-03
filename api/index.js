@@ -3,7 +3,6 @@ const express = require('express');
 
 const BASE_URL = 'https://streamed.pk';
 
-// Mapeamento de catálogos suportados
 const CATALOGS = [
     { id: 'live', name: '🔴 Ao Vivo Agora', path: '/api/matches/live' },
     { id: 'live_popular', name: '🔥 Populares Ao Vivo', path: '/api/matches/live/popular' },
@@ -19,9 +18,9 @@ const CATALOGS = [
 
 const manifest = {
     id: 'org.streamedaddon.sports',
-    version: '1.3.0',
+    version: '1.4.0',
     name: 'Streamed Sports Ultra',
-    description: 'Transmissões esportivas ao vivo com suporte a múltiplos servidores, idiomas e imagens HD.',
+    description: 'Transmissões esportivas ao vivo com suporte a múltiplos servidores e reprodutor externo.',
     types: ['tv', 'other'],
     catalogs: CATALOGS.map(cat => ({
         type: 'tv',
@@ -34,7 +33,6 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Função para construir URLs de imagens conforme a Images API
 function buildPosterUrl(match) {
     if (match.poster) {
         if (match.poster.startsWith('http')) return match.poster;
@@ -79,7 +77,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
                 type: 'tv',
                 name: `${popularBadge}${categoryBadge}${match.title}`,
                 poster: buildPosterUrl(match),
-                description: `🕒 Horário: ${formattedTime} | 📡 Fontes: ${match.sources?.length || 0} disponível(is)`
+                description: `🕒 Horário: ${formattedTime} | 📡 Servidores: ${match.sources?.length || 0}`
             };
         });
 
@@ -90,7 +88,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
     }
 });
 
-// Manipulador de Streams
+// Manipulador de Streams (Com suporte a externalUrl)
 builder.defineStreamHandler(async ({ id }) => {
     try {
         const parts = id.split(':');
@@ -102,13 +100,11 @@ builder.defineStreamHandler(async ({ id }) => {
         const currentCatalog = CATALOGS.find(c => c.id === catalogKey);
         const endpoint = currentCatalog ? currentCatalog.path : '/api/matches/all';
 
-        // 1. Busca os detalhes da partida para obter a lista de `sources`
         let matchRes = await fetch(`${BASE_URL}${endpoint}`);
         let matches = matchRes.ok ? await matchRes.json() : [];
 
         let match = Array.isArray(matches) ? matches.find(m => String(m.id) === String(matchId)) : null;
 
-        // Fallback: se não encontrar no catálogo atual, busca no /api/matches/all
         if (!match && endpoint !== '/api/matches/all') {
             matchRes = await fetch(`${BASE_URL}/api/matches/all`);
             matches = matchRes.ok ? await matchRes.json() : [];
@@ -119,7 +115,6 @@ builder.defineStreamHandler(async ({ id }) => {
             return { streams: [] };
         }
 
-        // 2. Consulta a Streams API em paralelo para todos os servidores da partida
         const streamRequests = match.sources.map(async (src) => {
             try {
                 const res = await fetch(`${BASE_URL}/api/stream/${src.source}/${src.id}`);
@@ -134,7 +129,6 @@ builder.defineStreamHandler(async ({ id }) => {
         const streamResults = await Promise.all(streamRequests);
         const rawStreams = streamResults.flat();
 
-        // 3. Mapeia e formata os links de transmissão para o Stremio
         const streams = rawStreams
             .map(s => {
                 const streamUrl = s.embedUrl || s.url;
@@ -142,11 +136,22 @@ builder.defineStreamHandler(async ({ id }) => {
 
                 const hdLabel = s.hd ? 'HD 1080p' : 'SD';
                 const langLabel = s.language ? ` 🌐 ${s.language}` : '';
-                const sourceLabel = s.source ? ` [Server ${s.source.toUpperCase()}]` : '';
+                const sourceLabel = s.source ? ` [${s.source.toUpperCase()}]` : '';
 
+                // Verifica se o link é um arquivo de mídia direto (.m3u8 / .mp4)
+                const isDirectVideo = streamUrl.includes('.m3u8') || streamUrl.includes('.mp4');
+
+                if (isDirectVideo) {
+                    return {
+                        title: `▶️ Reproduzir Direto #${s.streamNo || 1}${langLabel} - ${hdLabel}${sourceLabel}`,
+                        url: streamUrl
+                    };
+                }
+
+                // Para Embeds de páginas web, usa externalUrl (Abre no navegador)
                 return {
-                    title: `🔴 Opção #${s.streamNo || 1}${langLabel} - ${hdLabel}${sourceLabel}`,
-                    url: streamUrl
+                    title: `🌐 Abrir no Navegador #${s.streamNo || 1}${langLabel} - ${hdLabel}${sourceLabel}`,
+                    externalUrl: streamUrl
                 };
             })
             .filter(Boolean);
@@ -163,7 +168,6 @@ const router = getRouter(addonInterface);
 
 const app = express();
 
-// Middleware de otimização de Cache para a Vercel
 app.use((req, res, next) => {
     res.setHeader('Cache-Control', 'max-age=60, s-maxage=60, stale-while-revalidate=120');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -171,7 +175,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Página inicial HTML para instalação em um clique
 app.get('/', (req, res) => {
     const landingHTML = landingTemplate(addonInterface);
     res.setHeader('Content-Type', 'text/html');
