@@ -4,7 +4,7 @@ const express = require('express');
 const BASE_URL = 'https://streamed.pk';
 const ID_PREFIX = 'streamed:';
 
-// Apenas os 2 catálogos solicitados
+// Apenas os 2 catálogos configurados
 const CATALOGS = [
     { id: 'live', name: '🔴 Ao Vivo Agora', path: '/api/matches/live' },
     { id: 'all', name: '🌐 Todos os Eventos', path: '/api/matches/all' }
@@ -12,7 +12,7 @@ const CATALOGS = [
 
 const manifest = {
     id: 'org.streamedaddon.sports.custom',
-    version: '1.7.0',
+    version: '1.8.0',
     name: 'Streamed Sports PRO',
     description: 'Transmissões desportivas ao vivo com suporte a múltiplos servidores e metadados.',
     types: ['tv', 'sports', 'other'],
@@ -46,7 +46,7 @@ function buildPosterUrl(match) {
     return undefined;
 }
 
-// Manipulador do Catálogo
+// Manipulador do Catálogo (Títulos limpos, sem badges)
 builder.defineCatalogHandler(async ({ type, id }) => {
     if (!id.startsWith('streamed_')) {
         return { metas: [] };
@@ -71,13 +71,10 @@ builder.defineCatalogHandler(async ({ type, id }) => {
                 ? new Date(match.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
                 : 'Horário N/I';
 
-            const popularBadge = match.popular ? ' ' : '';
-            const categoryBadge = match.category ? `[${match.category.toUpperCase()}] ` : '';
-
             return {
                 id: `${ID_PREFIX}${catalogKey}:${match.id}`,
                 type: 'tv',
-                name: `${popularBadge}${categoryBadge}${match.title}`,
+                name: match.title,
                 poster: buildPosterUrl(match),
                 description: `🕒 Horário: ${formattedTime} | 📡 Servidores: ${match.sources?.length || 0}`
             };
