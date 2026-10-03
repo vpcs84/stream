@@ -9,8 +9,8 @@ const CATALOGS = [
     { id: 'live_popular', name: '🔥 Populares Ao Vivo', path: '/api/matches/live/popular' },
     { id: 'today', name: '📅 Jogos de Hoje', path: '/api/matches/all-today' },
     { id: 'football', name: '⚽ Futebol', path: '/api/matches/football' },
-    { id: 'basketball', name: '🏀 Basquete', path: '/api/matches/basketball' },
-    { id: 'tennis', name: '🎾 Tênis', path: '/api/matches/tennis' },
+    { id: 'basketball', name: '🏀 Basquetebol', path: '/api/matches/basketball' },
+    { id: 'tennis', name: '🎾 Ténis', path: '/api/matches/tennis' },
     { id: 'mma', name: '🥋 MMA', path: '/api/matches/mma' },
     { id: 'boxing', name: '🥊 Boxe', path: '/api/matches/boxing' },
     { id: 'motorsport', name: '🏎️ Automobilismo / F1', path: '/api/matches/motorsport' },
@@ -18,18 +18,18 @@ const CATALOGS = [
 ];
 
 const manifest = {
-    // ID Único alterado para evitar conflito com instâncias antigas ou públicas
     id: 'org.streamedaddon.sports.custom',
-    version: '1.5.0',
+    version: '1.6.0',
     name: 'Streamed Sports PRO',
-    description: 'Transmissões esportivas ao vivo com suporte a múltiplos servidores e links externos.',
+    description: 'Transmissões desportivas ao vivo com suporte a múltiplos servidores e metadados.',
     types: ['tv', 'sports', 'other'],
     catalogs: CATALOGS.map(cat => ({
         type: 'tv',
         id: `streamed_${cat.id}`,
         name: cat.name
     })),
-    resources: ['catalog', 'stream'],
+    // Recursos atualizados com 'meta' incluído
+    resources: ['catalog', 'stream', 'meta'],
     idPrefixes: [ID_PREFIX]
 };
 
@@ -54,9 +54,8 @@ function buildPosterUrl(match) {
     return undefined;
 }
 
-// Manipulador de Catálogo com isolamento de escopo
+// Manipulador do Catálogo
 builder.defineCatalogHandler(async ({ type, id }) => {
-    // Garante que o catálogo solicitado pertence ao nosso addon
     if (!id.startsWith('streamed_')) {
         return { metas: [] };
     }
@@ -77,7 +76,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
 
         const metas = matches.map(match => {
             const formattedTime = match.date 
-                ? new Date(match.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                ? new Date(match.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
                 : 'Horário N/I';
 
             const popularBadge = match.popular ? '🔥 ' : '';
@@ -99,9 +98,58 @@ builder.defineCatalogHandler(async ({ type, id }) => {
     }
 });
 
-// Manipulador de Streams com verificação de segurança de ID
+// Manipulador de Metadados (resolve a ausência de metadados)
+builder.defineMetaHandler(async ({ type, id }) => {
+    if (!id.startsWith(ID_PREFIX)) {
+        return { meta: null };
+    }
+
+    try {
+        const cleanId = id.replace(ID_PREFIX, '');
+        const parts = cleanId.split(':');
+        if (parts.length < 2) return { meta: null };
+
+        const catalogKey = parts[0];
+        const matchId = parts.slice(1).join(':');
+
+        const currentCatalog = CATALOGS.find(c => c.id === catalogKey);
+        const endpoint = currentCatalog ? currentCatalog.path : '/api/matches/all';
+
+        let matchRes = await fetch(`${BASE_URL}${endpoint}`);
+        let matches = matchRes.ok ? await matchRes.json() : [];
+
+        let match = Array.isArray(matches) ? matches.find(m => String(m.id) === String(matchId)) : null;
+
+        if (!match && endpoint !== '/api/matches/all') {
+            matchRes = await fetch(`${BASE_URL}/api/matches/all`);
+            matches = matchRes.ok ? await matchRes.json() : [];
+            match = Array.isArray(matches) ? matches.find(m => String(m.id) === String(matchId)) : null;
+        }
+
+        if (!match) return { meta: null };
+
+        const formattedTime = match.date 
+            ? new Date(match.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+            : 'Horário N/I';
+
+        return {
+            meta: {
+                id: id,
+                type: 'tv',
+                name: match.title,
+                poster: buildPosterUrl(match),
+                background: buildPosterUrl(match),
+                description: `🕒 Horário: ${formattedTime} | 📡 Servidores disponíveis: ${match.sources?.length || 0}`
+            }
+        };
+    } catch (error) {
+        console.error('[Streamed Addon] Erro no meta handler:', error);
+        return { meta: null };
+    }
+});
+
+// Manipulador de Streams
 builder.defineStreamHandler(async ({ id }) => {
-    // Se a requisição de stream não começar com nosso prefixo, ignora imediatamente
     if (!id.startsWith(ID_PREFIX)) {
         return { streams: [] };
     }
@@ -183,7 +231,6 @@ const router = getRouter(addonInterface);
 
 const app = express();
 
-// Configuração completa de CORS e Headers para a Vercel
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
