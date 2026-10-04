@@ -4,7 +4,6 @@ const express = require('express');
 const BASE_URL = 'https://streamed.pk';
 const ID_PREFIX = 'streamed:';
 
-// Apenas os 2 catálogos configurados
 const CATALOGS = [
     { id: 'live', name: '🔴 Ao Vivo Agora', path: '/api/matches/live' },
     { id: 'all', name: '🌐 Todos os Eventos', path: '/api/matches/all' }
@@ -12,14 +11,15 @@ const CATALOGS = [
 
 const manifest = {
     id: 'org.streamedaddon.sports.custom',
-    version: '1.8.0',
+    version: '1.9.0',
     name: 'Streamed Sports PRO',
     description: 'Transmissões desportivas ao vivo com suporte a múltiplos servidores e metadados.',
     types: ['tv', 'sports', 'other'],
     catalogs: CATALOGS.map(cat => ({
         type: 'tv',
         id: `streamed_${cat.id}`,
-        name: cat.name
+        name: cat.name,
+        posterShape: 'landscape' // Altera a exibição do catálogo para formato Banner / Landscape (16:9)
     })),
     resources: ['catalog', 'stream', 'meta'],
     idPrefixes: [ID_PREFIX]
@@ -46,7 +46,7 @@ function buildPosterUrl(match) {
     return undefined;
 }
 
-// Manipulador do Catálogo (Títulos limpos, sem badges)
+// Manipulador do Catálogo
 builder.defineCatalogHandler(async ({ type, id }) => {
     if (!id.startsWith('streamed_')) {
         return { metas: [] };
@@ -76,6 +76,7 @@ builder.defineCatalogHandler(async ({ type, id }) => {
                 type: 'tv',
                 name: match.title,
                 poster: buildPosterUrl(match),
+                posterShape: 'landscape', // Define cada cartão no formato banner/horizontal
                 description: `🕒 Horário: ${formattedTime} | 📡 Servidores: ${match.sources?.length || 0}`
             };
         });
@@ -127,6 +128,7 @@ builder.defineMetaHandler(async ({ type, id }) => {
                 type: 'tv',
                 name: match.title,
                 poster: buildPosterUrl(match),
+                posterShape: 'landscape',
                 background: buildPosterUrl(match),
                 description: `🕒 Horário: ${formattedTime} | 📡 Servidores disponíveis: ${match.sources?.length || 0}`
             }
